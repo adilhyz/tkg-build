@@ -3,7 +3,7 @@ name: Build and Push Linux-TKG (PDS)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 2 * * 0"  # setiap minggu jam 2 pagi UTC
+    - cron: "0 2 * * 0" # setiap minggu jam 2 pagi UTC
 
 jobs:
   build:
@@ -44,22 +44,4 @@ EOF
           cd linux-tkg
           makepkg -s --noconfirm
           mkdir -p ../output
-          mv *.pkg.tar.zst ../output/
-
-      - name: Clone adilhyz-repo
-        run: |
-          git clone https://github.com/adilhyz/adilhyz-repo.git --depth=1
-          cd adilhyz-repo
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          cp ../output/*.pkg.tar.zst ./repo/
-          repo-add repo/adilhyz.db.tar.gz repo/*.pkg.tar.zst || repo-add repo/adilhyz.db.tar.gz repo/*.pkg.tar.zst
-          git add repo/
-          git commit -m "update: linux-tkg-pds $(date -u +'%Y-%m-%d')"
-          git push https://x-access-token:${{ secrets.REPO_TOKEN }}@github.com/adilhyz/adilhyz-repo.git main
-
-      - name: Upload artifact (optional)
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-tkg-pds
-          path: output/*.pkg.tar.zst
+          mv ./*.pkg.tar.zst ../output/
