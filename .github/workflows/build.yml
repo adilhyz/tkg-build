@@ -45,15 +45,19 @@ jobs:
               echo "CONFIG_PREEMPT_VOLUNTARY=y\""
               echo "_sched_y=\"pds\""
             } > customization.cfg
+
+            # Jalankan skrip pembuat PKGBUILD
+            yes "" | ./install.sh
           '
 
       - name: Build kernel
         run: |
           sudo -u builder bash -c '
             cd linux-tkg
+            cd linux-tkg-config*/ # masuk ke folder hasil generate PKGBUILD
             makepkg -s --noconfirm
-            mkdir -p ../output
-            mv ./*.pkg.tar.zst ../output/
+            mkdir -p /home/builder/output
+            mv ./*.pkg.tar.zst /home/builder/output/
           '
 
       - name: Upload to GitHub Release
@@ -62,6 +66,6 @@ jobs:
           tag_name: "linux-tkg-pds-$(date -u +'%Y%m%d')"
           name: "Linux TKG PDS $(date -u +'%Y-%m-%d')"
           body: "Automated weekly build of Linux-TKG PDS kernel for Arch Linux."
-          files: output/*.pkg.tar.zst
+          files: /home/builder/output/*.pkg.tar.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
