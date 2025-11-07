@@ -3,69 +3,55 @@ name: Build and Release Linux-TKG (PDS)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 2 * * 0"
+    - cron: "0 2 * * 0"  # tiap minggu jam 2 pagi UTC
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
 
     steps:
-      - name: Prepare environment
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel git curl zstd jq bc kmod cpio flex bison libelf openssl sudo
-          useradd -m builder
-          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fix permissions for builder
-        run: chown -R builder:builder .
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git fakeroot build-essential bc kmod cpio flex bison libncurses-dev libssl-dev dwarves curl zstd tar xz-utils jq
 
-      - name: Clone linux-tkg repo & configure
+      - name: Create build user
+        run: |
+          sudo useradd -m builder
+          sudo passwd -d builder
+          sudo chown -R builder:builder $PWD
+
+      - name: Clone linux-tkg repo and configure
         run: |
           sudo -u builder bash -c '
             git clone https://github.com/Tk-Glitch/linux-tkg.git
             cd linux-tkg
-            {
-              echo "[_general]"
-              echo "_distro=\"arch\""
-              echo "_kernel_localversion=\"-tkg-pds\""
-              echo "_enable_llvm_lto=y"
-              echo "compileroptlevel=3"
-              echo "_processor_opt=\"native\""
-              echo "_use_numa=n"
-              echo "_kconfig_add=\"HZ_1000=y"
-              echo "CONFIG_HZ=1000"
-              echo "CONFIG_NO_HZ_FULL=y"
-              echo "CONFIG_NO_HZ_IDLE=y"
-              echo "CONFIG_PREEMPT_VOLUNTARY=y\""
-              echo "_sched_y=\"pds\""
-            } > customization.cfg
-
-            # Jalankan skrip pembuat PKGBUILD
-            yes "" | ./install.sh
-          '
-
-      - name: Build kernel
-        run: |
-          sudo -u builder bash -c '
-            cd linux-tkg
-            cd linux-tkg-config*/ # masuk ke folder hasil generate PKGBUILD
+            echo "[_general]" > customization.cfg
+            echo "_distro=\"arch\"" >> customization.cfg
+            echo "_kernel_localversion=\"-tkg-pds\"" >> customization.cfg
+            echo "_enable_llvm_lto=y" >> customization.cfg
+            echo "compileroptlevel=3" >> customization.cfg
+            echo "_processor_opt=\"native\"" >> customization.cfg
+            echo "_use_numa=n" >> customization.cfg
+            echo "_kconfig_add=\"HZ_1000=y" >> customization.cfg
+            echo "CONFIG_HZ=1000" >> customization.cfg
+            echo "CONFIG_NO_HZ_FULL=y" >> customization.cfg
+            echo "CONFIG_NO_HZ_IDLE=y" >> customization.cfg
+            echo "CONFIG_PREEMPT_VOLUNTARY=y\"" >> customization.cfg
+            echo "_sched_y=\"pds\"" >> customization.cfg
             makepkg -s --noconfirm
-            mkdir -p /home/builder/output
-            mv ./*.pkg.tar.zst /home/builder/output/
+            mkdir -p ../output
+            mv ./*.pkg.tar.zst ../output/
           '
 
-      - name: Upload to GitHub Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "linux-tkg-pds-$(date -u +'%Y%m%d')"
-          name: "Linux TKG PDS $(date -u +'%Y-%m-%d')"
-          body: "Automated weekly build of Linux-TKG PDS kernel for Arch Linux."
-          files: /home/builder/output/*.pkg.tar.zst
+          tag_name: "linux-tkg-pds-${{ github.run_number }}"
+          name: "Linux-TKG PDS Build #${{ github.run_number }}"
+          files: output/*.pkg.tar.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
