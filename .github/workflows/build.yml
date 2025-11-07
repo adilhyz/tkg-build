@@ -1,9 +1,9 @@
-name: Build and Push Linux-TKG (PDS)
+name: Build and Release Linux-TKG (PDS)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 2 * * 0"
+    - cron: "0 2 * * 0" # build mingguan
 
 jobs:
   build:
@@ -44,3 +44,13 @@ jobs:
           makepkg -s --noconfirm
           mkdir -p ../output
           mv ./*.pkg.tar.zst ../output/
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "linux-tkg-pds-$(date -u +'%Y%m%d')"
+          name: "Linux TKG PDS $(date -u +'%Y-%m-%d')"
+          body: "Automated weekly build of Linux-TKG PDS kernel for Arch Linux."
+          files: output/*.pkg.tar.zst
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
