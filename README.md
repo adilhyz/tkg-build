@@ -1,6 +1,6 @@
 ## Automate build
 
-> this kernel tkg for Arch Linux mirror build zst.
+> this kernel tkg for Arch Linux mirror for [adilhyz-repo](https://adilhyz.github.io/adilhyz-repo/).
 
 tkg-build © 2025 Adilhyz
 
