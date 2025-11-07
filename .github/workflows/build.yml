@@ -1,53 +1,48 @@
-name: Build and Release Linux-TKG (PDS)
+name: Build Arch kernel TKG-PDS (Custom)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 2 * * 0"  # Tiap minggu jam 2 pagi UTC
+    - cron: "0 2 * * 0" # build mingguan
+
+env:
+  _cpusched: "pds"
+  _processor_opt: "native"
+  _compiler: "llvm"
+  _lto_mode: "full"
+  _kernel_localversion: "-tkg-pds"
+  PKGDEST: "/tmp/linux-tkg"
 
 jobs:
-  build:
+  build-kernel:
     runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
+    container: archlinux:latest
 
     steps:
-      - name: Install dependencies
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --needed --noconfirm base-devel git curl zstd bc kmod cpio flex bison ncurses openssl python jq tar xz sudo
+      - name: Install git
+        run: pacman -Syu --noconfirm git base-devel sudo
 
-      - name: Add builder user
-        run: |
-          useradd -m builder
-          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
-      - name: Checkout
+      - name: Checkout linux-tkg
         uses: actions/checkout@v4
 
-      - name: Clone and Build linux-tkg
+      - name: Prepare makepkg user
         run: |
-          sudo -u builder bash -c '
-          cd ~
-          git clone https://github.com/Tk-Glitch/linux-tkg.git
-          cd linux-tkg
-          echo "[_general]" > customization.cfg
-          echo "_distro=\"arch\"" >> customization.cfg
-          echo "_kernel_localversion=\"-tkg-pds\"" >> customization.cfg
-          echo "_sched_y=\"pds\"" >> customization.cfg
-          echo "_compileroptlevel=\"3\"" >> customization.cfg
-          echo "_processor_opt=\"native\"" >> customization.cfg
-          echo "_use_llvm_lto=y" >> customization.cfg
-          makepkg -s --noconfirm
-          mkdir -p /output
-          mv ./*.pkg.tar.zst /output/
-          '
+          useradd -m user
+          echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          chown -R user .
 
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
+      - name: Compile Kernel
+        run: su --preserve-environment user -c "yes '' | makepkg --noconfirm -s"
+
+      - name: Rename kernel config
+        run: mv kernelconfig.new kernelconfig.arch.${{ env._cpusched }}.txt || true
+
+      - uses: softprops/action-gh-release@v2
         with:
-          tag_name: linux-tkg-pds-${{ github.run_number }}
-          name: "Linux-TKG PDS Build #${{ github.run_number }}"
-          files: /output/*.pkg.tar.zst
+          tag_name: "linux-tkg-${{ env._cpusched }}-${{ github.run_number }}"
+          name: "Linux TKG ${{ env._cpusched }} Build #${{ github.run_number }}"
+          files: |
+            ${{ env.PKGDEST }}/linux*.pkg.tar.zst
+            kernelconfig*.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
