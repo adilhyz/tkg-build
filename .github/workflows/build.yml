@@ -22,34 +22,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Clone linux-tkg repo
+      - name: Fix permissions for builder
+        run: chown -R builder:builder .
+
+      - name: Clone linux-tkg repo & configure
         run: |
-          sudo -u builder bash -c "
+          sudo -u builder bash -c '
             git clone https://github.com/Tk-Glitch/linux-tkg.git
             cd linux-tkg
-            echo '[ _general ]' > customization.cfg
-            echo '_distro=\"arch\"' >> customization.cfg
-            echo '_kernel_localversion=\"-tkg-pds\"' >> customization.cfg
-            echo '_enable_llvm_lto=y' >> customization.cfg
-            echo 'compileroptlevel=3' >> customization.cfg
-            echo '_processor_opt=\"native\"' >> customization.cfg
-            echo '_use_numa=n' >> customization.cfg
-            echo '_kconfig_add=\"HZ_1000=y' >> customization.cfg
-            echo 'CONFIG_HZ=1000' >> customization.cfg
-            echo 'CONFIG_NO_HZ_FULL=y' >> customization.cfg
-            echo 'CONFIG_NO_HZ_IDLE=y' >> customization.cfg
-            echo 'CONFIG_PREEMPT_VOLUNTARY=y\"' >> customization.cfg
-            echo '_sched_y=\"pds\"' >> customization.cfg
-          "
+            cat <<EOF > customization.cfg
+[_general]
+_distro="arch"
+_kernel_localversion="-tkg-pds"
+_enable_llvm_lto=y
+compileroptlevel=3
+_processor_opt="native"
+_use_numa=n
+_kconfig_add="HZ_1000=y
+CONFIG_HZ=1000
+CONFIG_NO_HZ_FULL=y
+CONFIG_NO_HZ_IDLE=y
+CONFIG_PREEMPT_VOLUNTARY=y"
+_sched_y="pds"
+EOF
+          '
 
       - name: Build kernel
         run: |
-          sudo -u builder bash -c "
+          sudo -u builder bash -c '
             cd linux-tkg
             makepkg -s --noconfirm
             mkdir -p ../output
             mv ./*.pkg.tar.zst ../output/
-          "
+          '
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
