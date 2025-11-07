@@ -1,4 +1,4 @@
-name: Build Arch kernel TKG-PDS (Custom)
+name: Build Arch Linux Kernel (TKG-PDS)
 
 on:
   workflow_dispatch:
@@ -19,30 +19,46 @@ jobs:
     container: archlinux:latest
 
     steps:
-      - name: Install git
-        run: pacman -Syu --noconfirm git base-devel sudo
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm git base-devel sudo curl
 
-      - name: Checkout linux-tkg
-        uses: actions/checkout@v4
+      - name: Clone linux-tkg
+        run: |
+          git clone https://github.com/Tk-Glitch/linux-tkg.git
+          cd linux-tkg
+          # Tambahkan sedikit konfigurasi custom
+          echo "[_general]" > customization.cfg
+          echo "_distro=\"arch\"" >> customization.cfg
+          echo "_kernel_localversion=\"-tkg-pds\"" >> customization.cfg
+          echo "_sched_y=\"pds\"" >> customization.cfg
+          echo "_compiler=\"llvm\"" >> customization.cfg
+          echo "_lto_mode=\"full\"" >> customization.cfg
+          echo "_processor_opt=\"native\"" >> customization.cfg
+          echo "_cpusched=\"pds\"" >> customization.cfg
 
       - name: Prepare makepkg user
         run: |
           useradd -m user
           echo "user ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-          chown -R user .
+          chown -R user linux-tkg
 
-      - name: Compile Kernel
-        run: su --preserve-environment user -c "yes '' | makepkg --noconfirm -s"
+      - name: Build kernel
+        run: |
+          cd linux-tkg
+          su --preserve-environment user -c "yes '' | makepkg --noconfirm -s"
 
       - name: Rename kernel config
-        run: mv kernelconfig.new kernelconfig.arch.${{ env._cpusched }}.txt || true
+        run: |
+          cd linux-tkg
+          mv kernelconfig.new kernelconfig.arch.${{ env._cpusched }}.txt || true
 
-      - uses: softprops/action-gh-release@v2
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: "linux-tkg-${{ env._cpusched }}-${{ github.run_number }}"
           name: "Linux TKG ${{ env._cpusched }} Build #${{ github.run_number }}"
           files: |
-            ${{ env.PKGDEST }}/linux*.pkg.tar.zst
-            kernelconfig*.txt
+            linux-tkg/*.pkg.tar.zst
+            linux-tkg/kernelconfig*.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
