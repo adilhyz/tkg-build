@@ -1,0 +1,65 @@
+name: Build and Push Linux-TKG (PDS)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 0"  # setiap minggu jam 2 pagi UTC
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git fakeroot build-essential bc kmod cpio flex bison libncurses-dev libssl-dev dwarves curl zstd tar xz-utils jq
+
+      - name: Clone linux-tkg repo
+        run: |
+          git clone https://github.com/Tk-Glitch/linux-tkg.git
+          cd linux-tkg
+          # Konfigurasi kernel (PDS + tickless + 1000Hz + default arch)
+          cat > customization.cfg <<'EOF'
+[_general]
+_distro="arch"
+_kernel_localversion="-tkg-pds"
+_enable_llvm_lto=y
+compileroptlevel=3
+_processor_opt="native"
+_use_numa=n
+_kconfig_add="HZ_1000=y
+CONFIG_HZ=1000
+CONFIG_NO_HZ_FULL=y
+CONFIG_NO_HZ_IDLE=y
+CONFIG_PREEMPT_VOLUNTARY=y"
+_sched_y="pds"
+EOF
+
+      - name: Build kernel
+        run: |
+          cd linux-tkg
+          makepkg -s --noconfirm
+          mkdir -p ../output
+          mv *.pkg.tar.zst ../output/
+
+      - name: Clone adilhyz-repo
+        run: |
+          git clone https://github.com/adilhyz/adilhyz-repo.git --depth=1
+          cd adilhyz-repo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          cp ../output/*.pkg.tar.zst ./repo/
+          repo-add repo/adilhyz.db.tar.gz repo/*.pkg.tar.zst || repo-add repo/adilhyz.db.tar.gz repo/*.pkg.tar.zst
+          git add repo/
+          git commit -m "update: linux-tkg-pds $(date -u +'%Y-%m-%d')"
+          git push https://x-access-token:${{ secrets.REPO_TOKEN }}@github.com/adilhyz/adilhyz-repo.git main
+
+      - name: Upload artifact (optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-tkg-pds
+          path: output/*.pkg.tar.zst
